@@ -65,24 +65,33 @@ def filtering_freq(f_x_y: np.ndarray, h_x_y: np.array) -> np.ndarray:
 
     return g_x_y
 
+def enhance_image(img: np.ndarray, filter: np.array) -> np.ndarray:
+    '''
+    Note: Filter itself should be aa highpass filter to enhance.
+    '''
+    sharp_components = filtering_freq(img, filter)
+    enhanced_img = cv2.add(img, sharp_components)
+    return enhanced_img
+
     
 if __name__ == "__main__":
     file_path = 'src\\test_images\\test2.jpg'
     img = cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
 
-    # high_pass_filter = np.array([
-    #     [0, -1, 0],
-    #     [-1, 4, -1],
-    #     [0, -1, 0]
-    # ], dtype=np.float32) 
+    high_pass_filter = np.array([
+        [0, -1, 0],
+        [-1, 4, -1],
+        [0, -1, 0]
+    ], dtype=np.float32) 
 
-    low_pass_filter = np.array([
-        [1, 1, 1],
-        [1, 1, 1],
-        [1, 1, 1]
-    ], dtype=np.float32)
+    # low_pass_filter = np.array([
+    #     [1, 1, 1],
+    #     [1, 1, 1],
+    #     [1, 1, 1]
+    # ], dtype=np.float32) / 9
 
-    edges = filtering_freq(img, low_pass_filter)
+    # edges = filtering_freq(img, low_pass_filter)
+    enhanced_image = enhance_image(img, high_pass_filter)
     cv2.imshow("Original", img)
-    cv2.imshow("Final", edges)
+    cv2.imshow("Final", enhanced_image)
     cv2.waitKey(0)
