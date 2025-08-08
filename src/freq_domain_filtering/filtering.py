@@ -50,7 +50,7 @@ def filtering_freq(f_x_y: np.ndarray, h_x_y: np.array) -> np.ndarray:
     G_u_v = F_u_v * H_u_v
 
     ## Converting G_u_v to spatial domain by only taking the real value
-    gp_x_y = np.fft.ifft2(G_u_v)
+    gp_x_y = np.fft.ifft2(G_u_v).real
 
     for x in range(P):
         for y in range(Q):
@@ -65,6 +65,75 @@ def filtering_freq(f_x_y: np.ndarray, h_x_y: np.array) -> np.ndarray:
 
     return g_x_y
 
+def low_pass_filter(img: np.ndarray, D0: int, filter_type: str, n: int = 1) -> np.ndarray:
+    '''
+    img: input image of the form np.ndarray
+    D0: cutoff-frequency
+    filter_type: 
+        "ILPF" : ideal low-pass filter
+        "GLPF" : Gaussian low-pass filter
+        "BLPF" : Butterworth low-pass gilter
+
+    n: optional param for when filter_type == "BLPF"
+    '''
+
+    if filter_type not in ["ILPF", "GLPF", "BLPF"]: 
+        print("Invalid filter type: Eligible filter_type are ILPF, GLPF and BLPF")
+        return np.array([0])
+    
+    def ideal_low_pass_filter(P: int, Q: int, D0: int) -> np.ndarray:
+        ''' Generate Ideal Low-Pass Filter Mask. '''
+        U, V = np.meshgrid(np.arange(Q), np.arange(P))
+        D = np.sqrt((U - Q//2) ** 2 + (V - P//2) ** 2)
+        H = np.zeros((P, Q), dtype=np.float32)
+        H[D <= D0] = 1
+        return H 
+    
+    def gaussian_low_pass_filter(P: int, Q: int, D0: int) -> np.ndarray:
+        ''' Generate Gaussian Low-Pass Filter Mask. '''
+        U, V = np.meshgrid(np.arange(Q), np.arange(P))
+        D_squared = (U - Q//2) ** 2 + (V - P//2) ** 2
+        H = np.exp(-D_squared / (2 * (D0 ** 2)))
+        return H
+    
+    def butterworth_low_pass_filter(P: int, Q: int, D0: int, n: int = 1) -> np.ndarray:
+        ''' Generate Butterworth Low-Pass Filter Mask. Order is n'''
+        U, V = np.meshgrid(np.arange(Q), np.arange(P))
+        D_squared = (U - Q//2) ** 2 + (V - P//2) ** 2
+        D = np.sqrt(D_squared)
+        H = 1 / (1 + (D / D0) ** (2 * n))
+        return H
+
+    
+    M, N = img.shape
+    P, Q = 2*M, 2*N
+    fp = np.zeros((P, Q), dtype=np.float32)
+    fp[:M, :N] = img
+
+    for u in range(P):
+        for v in range(Q):
+            fp[u, v] *= (-1) ** (u + v)
+
+    F = np.fft.fft2(fp)
+
+    if filter_type == "ILPF": H = ideal_low_pass_filter(P, Q, D0)
+    elif filter_type == "GLPF": H = gaussian_low_pass_filter(P, Q, D0)
+    else: H = butterworth_low_pass_filter(P, Q, D0, n)
+
+    G = F * H
+
+    gp = np.fft.ifft2(G).real
+    for x in range(P):
+        for y in range(Q):
+            gp[x, y] *= (-1) ** (x + y)
+
+    g_final = gp[:M, :N]
+    g_final = np.abs(g_final)
+    g_final = g_final / np.max(g_final) * 255
+    g_final = g_final.astype(np.uint8)
+    return g_final
+    
+
 def enhance_image(img: np.ndarray, filter: np.array) -> np.ndarray:
     '''
     Note: Filter itself should be aa highpass filter to enhance.
@@ -78,11 +147,11 @@ if __name__ == "__main__":
     file_path = 'src\\test_images\\test2.jpg'
     img = cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
 
-    high_pass_filter = np.array([
-        [0, -1, 0],
-        [-1, 4, -1],
-        [0, -1, 0]
-    ], dtype=np.float32) 
+    # high_pass_filter = np.array([
+    #     [0, -1, 0],
+    #     [-1, 4, -1],
+    #     [0, -1, 0]
+    # ], dtype=np.float32) 
 
     # low_pass_filter = np.array([
     #     [1, 1, 1],
@@ -91,7 +160,9 @@ if __name__ == "__main__":
     # ], dtype=np.float32) / 9
 
     # edges = filtering_freq(img, low_pass_filter)
-    enhanced_image = enhance_image(img, high_pass_filter)
+    # enhanced_image = enhance_image(img, high_pass_filter)
+    print(img.shape)
+    blurred_img = low_pass_filter(img, D0=150, filter_type="BLPF", n = 1)
     cv2.imshow("Original", img)
-    cv2.imshow("Final", enhanced_image)
+    cv2.imshow("Final", blurred_img)
     cv2.waitKey(0)
